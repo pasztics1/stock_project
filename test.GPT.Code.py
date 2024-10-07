@@ -7,6 +7,8 @@ from deap import base, creator, tools, algorithms
 import random
 
 # Load the dataset
+# Assuming the historical stock data is in a CSV file with columns like: 'Date', 'Open', 'High', 'Low', 'Close', 'Volume'
+data = pd.read_csv('historical_stock_data.csv')
 
 # Feature engineering
 data['Price_Change'] = data['Close'].diff()
@@ -118,4 +120,5 @@ print(feature_importances)
 # Predict future movement (example for the next t time)
 latest_data = data[features].iloc[-1:].values
 future_prediction = rf_classifier.predict(latest_data)
-print(f'\nPrediction for next time step: {"Up" if future_prediction[0] == 1 else "Down"}')
+future_trend = "Up" if future_prediction[0] == 1 else "Down"
+print(f'\nPrediction for next time step: {future_trend}')
