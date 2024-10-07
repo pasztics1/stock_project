@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 from cuml.ensemble import RandomForestClassifier as cuRFClassifier
@@ -7,6 +8,10 @@ from deap import base, creator, tools, algorithms
 import random
 import cudf
 import cupy as cp
+
+# Install necessary dependencies for Google Colab
+if 'google.colab' in str(get_ipython()):
+    os.system('pip install cudf cuml cuml-cu11 -q --extra-index-url=https://pypi.nvidia.com')
 
 # Load the dataset
 # Assuming the historical stock data is in a CSV file with columns like: 'Date', 'Open', 'High', 'Low', 'Close', 'Volume'
