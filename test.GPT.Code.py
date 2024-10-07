@@ -7,8 +7,6 @@ from deap import base, creator, tools, algorithms
 import random
 
 # Load the dataset
-# Assuming the historical stock data is in a CSV file with columns like: 'Date', 'Open', 'High', 'Low', 'Close', 'Volume'
-data = pd.read_csv('historical_stock_data.csv')
 
 # Feature engineering
 data['Price_Change'] = data['Close'].diff()
@@ -55,7 +53,7 @@ def evaluate_individual(individual):
     rf_classifier = RandomForestClassifier(
         n_estimators=int(n_estimators),
         max_depth=int(max_depth),
-        min_samples_split=min_samples_split,
+        min_samples_split=int(min_samples_split),
         random_state=42
     )
     rf_classifier.fit(X_train, y_train)
@@ -97,7 +95,7 @@ print(f"min_samples_split: {int(min_samples_split)}")
 rf_classifier = RandomForestClassifier(
     n_estimators=int(n_estimators),
     max_depth=int(max_depth),
-    min_samples_split=min_samples_split,
+    min_samples_split=int(min_samples_split),
     random_state=42
 )
 rf_classifier.fit(X_train, y_train)
