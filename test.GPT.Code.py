@@ -55,7 +55,7 @@ def evaluate_individual(individual):
     rf_classifier = RandomForestClassifier(
         n_estimators=int(n_estimators),
         max_depth=int(max_depth),
-        min_samples_split=int(min_samples_split),
+        min_samples_split=min_samples_split,
         random_state=42
     )
     rf_classifier.fit(X_train, y_train)
@@ -68,26 +68,36 @@ toolbox.register('select', tools.selTournament, tournsize=3)
 toolbox.register('evaluate', evaluate_individual)
 
 # Genetic Algorithm setup
-population = toolbox.population(n=20)
-NGEN = 10
-CXPB, MUTPB = 0.5, 0.2
+population_size = 100
+population = toolbox.population(n=population_size)
+NGEN = 20
+CXPB, MUTPB = 0.7, 0.3
 
+print("Starting Genetic Algorithm optimization...")
 for gen in range(NGEN):
+    print(f"Generation {gen + 1}/{NGEN}")
     offspring = algorithms.varAnd(population, toolbox, cxpb=CXPB, mutpb=MUTPB)
     fits = list(map(toolbox.evaluate, offspring))
     for fit, ind in zip(fits, offspring):
         ind.fitness.values = fit
     population = toolbox.select(offspring, k=len(population))
+    best_individual = tools.selBest(population, k=1)[0]
+    print(f"Best fitness in generation {gen + 1}: {best_individual.fitness.values[0]:.4f}")
 
 # Get the best individual
 best_individual = tools.selBest(population, k=1)[0]
 n_estimators, max_depth, min_samples_split = best_individual
 
+print("\nBest Individual Parameters:")
+print(f"n_estimators: {int(n_estimators)}")
+print(f"max_depth: {int(max_depth)}")
+print(f"min_samples_split: {int(min_samples_split)}")
+
 # Train the optimized RandomForestClassifier
 rf_classifier = RandomForestClassifier(
     n_estimators=int(n_estimators),
     max_depth=int(max_depth),
-    min_samples_split=int(min_samples_split),
+    min_samples_split=min_samples_split,
     random_state=42
 )
 rf_classifier.fit(X_train, y_train)
@@ -97,15 +107,17 @@ y_pred = rf_classifier.predict(X_test)
 
 # Evaluate the model
 accuracy = accuracy_score(y_test, y_pred)
-print(f'Optimized Accuracy: {accuracy:.2f}')
+print(f'\nOptimized Model Accuracy: {accuracy:.2f}')
+print("Classification Report:")
 print(classification_report(y_test, y_pred))
 
 # Feature Importance
 importances = rf_classifier.feature_importances_
 feature_importances = pd.DataFrame({'Feature': features, 'Importance': importances}).sort_values(by='Importance', ascending=False)
+print("\nFeature Importances:")
 print(feature_importances)
 
 # Predict future movement (example for the next t time)
 latest_data = data[features].iloc[-1:].values
 future_prediction = rf_classifier.predict(latest_data)
-print('Prediction for next time step:', 'Up' if future_prediction[0] == 1 else 'Down')
+print(f'\nPrediction for next time step: {"Up" if future_prediction[0] == 1 else "Down"}')
