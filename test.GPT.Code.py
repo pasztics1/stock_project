@@ -42,20 +42,20 @@ toolbox = base.Toolbox()
 # Attribute generator
 toolbox.register('n_estimators', random.randint, 10, 200)
 toolbox.register('max_depth', random.randint, 1, 20)
-toolbox.register('min_samples_split', random.uniform, 0.1, 1.0)
+toolbox.register('min_samples_split', random.randint, 2, 10)
 
 toolbox.register('individual', tools.initCycle, creator.Individual,
                  (toolbox.n_estimators, toolbox.max_depth, toolbox.min_samples_split), n=1)
 
-toolbox.register('population', tools.initPopulation, list, toolbox.individual)
+toolbox.register('population', tools.initRepeat, list, toolbox.individual)
 
 # Evaluation function
 def evaluate_individual(individual):
     n_estimators, max_depth, min_samples_split = individual
     rf_classifier = RandomForestClassifier(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        min_samples_split=min_samples_split,
+        n_estimators=int(n_estimators),
+        max_depth=int(max_depth),
+        min_samples_split=int(min_samples_split),
         random_state=42
     )
     rf_classifier.fit(X_train, y_train)
@@ -63,7 +63,7 @@ def evaluate_individual(individual):
     return accuracy_score(y_test, y_pred),
 
 toolbox.register('mate', tools.cxTwoPoint)
-toolbox.register('mutate', tools.mutPolynomialBounded, low=[10, 1, 0.1], up=[200, 20, 1.0], indpb=0.2, eta=1.0)
+toolbox.register('mutate', tools.mutPolynomialBounded, low=[10, 1, 2], up=[200, 20, 10], indpb=0.2, eta=1.0)
 toolbox.register('select', tools.selTournament, tournsize=3)
 toolbox.register('evaluate', evaluate_individual)
 
@@ -85,9 +85,9 @@ n_estimators, max_depth, min_samples_split = best_individual
 
 # Train the optimized RandomForestClassifier
 rf_classifier = RandomForestClassifier(
-    n_estimators=n_estimators,
-    max_depth=max_depth,
-    min_samples_split=min_samples_split,
+    n_estimators=int(n_estimators),
+    max_depth=int(max_depth),
+    min_samples_split=int(min_samples_split),
     random_state=42
 )
 rf_classifier.fit(X_train, y_train)
