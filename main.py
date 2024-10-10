@@ -39,7 +39,7 @@ class DT:
         n_labels = len(np.unique(y))
         
         
-        # checking for stopping criteria   
+        # checking for stopping criteria    
         if (depth>=self.max_depth or n_labels==1 or n_samples<self.min_samples_split):
             leaf_value = self._most_common_label(y)
             return Node(value=leaf_value) #what the "*" does
@@ -170,3 +170,5 @@ class RF:
         tree_preds = np.swapaxes(predictions, 0, 1) #
         predictions=np.array([self._most_common_label(pred) for pred in tree_preds])
         return predictions
+    
+    
