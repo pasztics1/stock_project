@@ -137,7 +137,7 @@ class DT:
 
 
 class RF:
-    def __init__(self, n_trees=50,max_depth=10,min_samples_split=2, n_features=None):
+    def __init__(self, n_trees=100,max_depth=20,min_samples_split=4, n_features=None):
         self.n_trees=n_trees
         self.max_depth=max_depth
         self.min_samples_split=min_samples_split
@@ -154,7 +154,6 @@ class RF:
             
             X_sample, y_sample = self._samples(X, y)
             tree.fit(X_sample, y_sample)
-            print("Tree done!")
             self.trees.append(tree) #appending tree to the forest
             
     def _samples(self, X, y): #what to name this
