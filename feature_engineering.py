@@ -31,7 +31,7 @@ import os
 import pandas as pd
 from labeling import correct_file
 
-def add_features(ask_file_name, bid_file_name, dayfirst = True, predicted=5):
+def add_features(ask_file_name, bid_file_name, PRECENTAGE, dayfirst = True, predicted=5):
     
     #Merging dataframes with bid and ask data
     df_bid = correct_file(bid_file_name,dayfirst)
@@ -152,7 +152,7 @@ def add_features(ask_file_name, bid_file_name, dayfirst = True, predicted=5):
         
         df_merged['Higher'] = df_merged['Higher'].astype(bool)
         
-    df_merged = df_merged.iloc[int(df.shape[0]-df.shape[0]*0.1):-5]
+    df_merged = df_merged.iloc[int(df.shape[0]-df.shape[0]*PRECENTAGE):-5] # Include {precentage}% of a dataset for quicker fitting
 
     df_merged = df_merged.dropna()
     print(df_merged.head())
