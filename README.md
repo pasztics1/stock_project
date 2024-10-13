@@ -19,7 +19,34 @@ To ensure all the needed Python libraries are installed, follow these steps:
     cd stock_project
     ```
 
-2. Run the `build.bat` file to install the required libraries and the necessary wheel file:
+2. Run the `build.bat` file to install the required libraries:
     ```sh
     build.bat
+    ```
+
+#### Optional
+#####Installing **Jupyter Notebook** and **JupyterLab** for handling ipnyb files:
+1. To install **Jupyter Notebook**:
+    ```sh
+    pip install notebook
+    ```
+
+2. To install **JupyterLab**:
+
+    ```sh
+    pip install jupyterlab
+    ```
+
+###### Launching Jupyter
+
+- Launching Jupyter Notebook:
+
+    ```sh
+    jupyter notebook
+    ```
+
+- Launching JupyterLab:
+
+    ```sh
+    jupyter lab
     ```
