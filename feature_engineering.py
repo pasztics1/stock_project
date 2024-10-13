@@ -162,6 +162,3 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, dayfirst = True, pred
     df_merged.to_csv(output_path, index=False)
     
     return f"Succesfully added features to {ask_file_name}"
-
-    
-add_features("AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv","AAPL.USUSD_Candlestick_1_M_BID_11.10.2021-05.10.2024.csv")
