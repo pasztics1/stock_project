@@ -15,8 +15,8 @@ To ensure all the needed Python libraries are installed, follow these steps:
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/your-repo-name.git
-    cd your-repo-name
+    git clone https://github.com/pasztics1/stock_project
+    cd stock_project
     ```
 
 2. Run the `build.bat` file to install the required libraries and the necessary wheel file:
