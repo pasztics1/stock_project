@@ -152,7 +152,7 @@ def add_features(ask_file_name, bid_file_name, dayfirst = True, predicted=5):
         
         df_merged['Higher'] = df_merged['Higher'].astype(bool)
         
-    df_merged = df_merged.iloc[:-5]
+    df_merged = df_merged.iloc[(df.shape[0]-df.shape[0]*0,1):-5]
 
     df_merged = df_merged.dropna()
     print(df_merged.head())
