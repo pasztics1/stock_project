@@ -166,3 +166,5 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
     df_merged.to_csv(output_path, index=False)
     
     return f"Succesfully added features to {ask_file_name}"
+
+print(add_features("","",0.2))

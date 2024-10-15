@@ -27,7 +27,7 @@ class Node:
         return self.value is not None #root node is going to have None as a value
         
 class DT:
-    def __init__(self, min_samples_split=2, max_depth = 100, n_features = 30):
+    def __init__(self, min_samples_split=2, max_depth = 100, n_features = 20):
         self.min_samples_split = min_samples_split
         self.max_depth = max_depth
         self.n_features = n_features #Adding randomness by not using all the features, just a subset of them, crucial for Random forests, that's different from original ID3
@@ -139,7 +139,7 @@ class DT:
 
 
 class RF:
-    def __init__(self, certanity_needed=0.6, n_trees=30,max_depth=12,min_samples_split=2, n_features=30):
+    def __init__(self, certanity_needed=0.6, n_trees=25,max_depth=10,min_samples_split=2, n_features=20):
         self.n_trees=n_trees
         self.max_depth=max_depth
         self.min_samples_split=min_samples_split
@@ -188,5 +188,4 @@ class RF:
         predictions=np.array([self._most_common_label(pred) for pred in tree_preds])
         return predictions
     
-    
-    
+        
