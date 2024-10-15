@@ -13,7 +13,6 @@ from collections import Counter
 #ideas:
   #improvement of feature selection
   #implementation of cross-validation
-  #only produce a prediction if the model's confident enought in the decision, meaning that more than x predefined precent of trees predicted the same output
 
 
 class Node:
@@ -28,7 +27,7 @@ class Node:
         return self.value is not None #root node is going to have None as a value
         
 class DT:
-    def __init__(self, min_samples_split=2, max_depth = 100, n_features = None):
+    def __init__(self, min_samples_split=2, max_depth = 100, n_features = 30):
         self.min_samples_split = min_samples_split
         self.max_depth = max_depth
         self.n_features = n_features #Adding randomness by not using all the features, just a subset of them, crucial for Random forests, that's different from original ID3
@@ -117,8 +116,8 @@ class DT:
         
         
     def _most_common_label(self, y):
-        counter = Counter(y)
-        value = counter.most_common(1)[0][0] #https://docs.python.org/3/library/collections.html#collections.Counter
+        count = Counter(y)
+        value = count.most_common(1)[0][0] #https://docs.python.org/3/library/collections.html#collections.Counter
         return value
     
     def predict(self, X):
@@ -140,12 +139,14 @@ class DT:
 
 
 class RF:
-    def __init__(self, n_trees=20,max_depth=10,min_samples_split=2, n_features=None):
+    def __init__(self, certanity_needed=0.6, n_trees=30,max_depth=15,min_samples_split=2, n_features=30):
         self.n_trees=n_trees
         self.max_depth=max_depth
         self.min_samples_split=min_samples_split
+        self.certainty_needed=certanity_needed
         self.n_features=n_features
         self.trees=[]
+        
         
     def fit(self, X, y):
         self.trees = []
@@ -153,6 +154,7 @@ class RF:
             tree = DT(max_depth=self.max_depth,
                min_samples_split=self.min_samples_split,
                n_features=self.n_features)
+            
             
             
             X_sample, y_sample = self._samples(X, y)
@@ -166,10 +168,17 @@ class RF:
         return X[idxs], y[idxs]
     
     def _most_common_label(self, y):
-        counter = Counter(y)
-        value = counter.most_common(1)[0][0] #https://docs.python.org/3/library/collections.html#collections.Counter
+        count = Counter(y)
+        value = count.most_common(1)[0][0] #https://docs.python.org/3/library/collections.html#collections.Counter
         return value
         
+    def _certainty(self, y):
+        count = Counter(y)
+        if min(count[True],count[False])/max(count[True],count[False])<self.certainty_needed:
+            return count.most_common(1)[0][0]
+        return 0
+            
+
     
         
     def predict(self, X):
