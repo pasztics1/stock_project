@@ -159,7 +159,7 @@ class RF:
             
             X_sample, y_sample = self._samples(X, y)
             tree.fit(X_sample, y_sample)
-            print("Tree done!")
+            print(f"Tree {len(self.trees)} done!\nTraining progress: {round(len(self.trees)/self.n_trees,2)}%")
             self.trees.append(tree) #appending tree to the forest
             
     def _samples(self, X, y): #what to name this
