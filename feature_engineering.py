@@ -31,7 +31,7 @@ import os
 import pandas as pd
 from labeling import correct_file
 
-def add_features(ask_file_name, bid_file_name, PRECENTAGE, dayfirst = True, predicted=5):
+def add_features(ask_file_name, bid_file_name, PRECENTAGE, label, dayfirst = True, predicted=5):
     
     #Merging dataframes with bid and ask data
     df_bid = correct_file(bid_file_name,dayfirst)
@@ -140,17 +140,21 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, dayfirst = True, pred
     
     #Determining the y label
     
-    df_merged['Higher'] = False 
     
-            
-    for i in range(0, len(df_merged)-(predicted)):
-        if df_merged['Mid_Price'].iloc[i+predicted]>df_merged['Mid_Price'].iloc[i]:
-            df_merged.loc[i,'Higher'] = True
+    
+    
+    if label:
+        print(predicted)
         
-        #this way the last 5 values don't get a "Higher" value
+        df_merged['Higher'] = False 
+        for i in range(0, len(df_merged)-(predicted)):
+            if df_merged['Mid_Price'].iloc[i+predicted]>df_merged['Mid_Price'].iloc[i]:
+                df_merged.loc[i,'Higher'] = True
             
-        
-        df_merged['Higher'] = df_merged['Higher'].astype(bool)
+            #this way the last 5 values don't get a "Higher" value
+                
+            
+            df_merged['Higher'] = df_merged['Higher'].astype(bool)
         
     df_merged = df_merged.iloc[int(df.shape[0]-df.shape[0]*PRECENTAGE):-5] # Include {precentage}% of a dataset for quicker fitting
 

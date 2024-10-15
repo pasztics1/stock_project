@@ -13,6 +13,7 @@ from collections import Counter
 #ideas:
   #improvement of feature selection
   #implementation of cross-validation
+  #only produce a prediction if the model's confident enought in the decision, meaning that more than x predefined precent of trees predicted the same output
 
 
 class Node:
@@ -126,6 +127,8 @@ class DT:
     def _traverse_tree(self, x, node):
         if node.is_leaf_node():
             return node.value
+        
+
         
         if x[node.feature] <= node.threshold:
             return self._traverse_tree(x, node.left)
