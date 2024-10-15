@@ -139,7 +139,7 @@ class DT:
 
 
 class RF:
-    def __init__(self, certanity_needed=0.6, n_trees=30,max_depth=15,min_samples_split=2, n_features=30):
+    def __init__(self, certanity_needed=0.6, n_trees=30,max_depth=12,min_samples_split=2, n_features=30):
         self.n_trees=n_trees
         self.max_depth=max_depth
         self.min_samples_split=min_samples_split
@@ -187,5 +187,6 @@ class RF:
         tree_preds = np.swapaxes(predictions, 0, 1) #
         predictions=np.array([self._most_common_label(pred) for pred in tree_preds])
         return predictions
+    
     
     

@@ -31,7 +31,7 @@ import os
 import pandas as pd
 from labeling import correct_file
 
-def add_features(ask_file_name, bid_file_name, PRECENTAGE, label, dayfirst = True, predicted=5):
+def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst = True, predicted=5):
     
     #Merging dataframes with bid and ask data
     df_bid = correct_file(bid_file_name,dayfirst)
