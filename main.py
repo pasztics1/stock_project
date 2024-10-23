@@ -3,8 +3,8 @@
 #yahoofinance
 import pandas as pd
 import numpy as np
-import yfinance as yf
-
+# import yfinance as yf
+                            
 from labeling import correct_file
 from collections import Counter
 #cd C:\Users\Surface\Desktop\binary_classifier_project
@@ -13,6 +13,16 @@ from collections import Counter
 #ideas:
   #improvement of feature selection
   #implementation of cross-validation
+
+#HYPERPARAMETERS#
+
+N_TREES = 100    #30 This was modified
+MAX_DEPTH = 20   #10 
+MIN_SAMPLES_SPLIT = 10  #2 this was modified
+N_FEATURES = 7
+
+#
+
 
 
 class Node:
@@ -27,7 +37,7 @@ class Node:
         return self.value is not None #root node is going to have None as a value
         
 class DT:
-    def __init__(self, min_samples_split=2, max_depth = 100, n_features = 20):
+    def __init__(self, min_samples_split=MIN_SAMPLES_SPLIT, max_depth = MAX_DEPTH, n_features = N_FEATURES):
         self.min_samples_split = min_samples_split
         self.max_depth = max_depth
         self.n_features = n_features #Adding randomness by not using all the features, just a subset of them, crucial for Random forests, that's different from original ID3
@@ -41,21 +51,23 @@ class DT:
     def _grow_tree(self, X, y, depth=0): #going to be run recursively (remember the tutorial)
         n_samples, n_feats = X.shape #shape returns 2 values and this way you can give those to 2 variables
         n_labels = len(np.unique(y))
-        
-        
+        print("Check")
+
         # checking for stopping criteria    
         if (depth>=self.max_depth or n_labels==1 or n_samples<self.min_samples_split):
             leaf_value = self._most_common_label(y)
+            print('Stopping criteria')
             return Node(value=leaf_value) #that's what the "*" does
         
         
         feat_idxs = np.random.choice(n_feats, self.n_features, replace=False) #https://numpy.org/doc/stable/reference/random/generated/numpy.random.choice.html
-    
+
         #best split based on IG
         best_feature, best_thresh = self._best_split(X, y, feat_idxs) #feat_idx is the features I want to include when creating a new split, that's where randomness is created
         
+        print(f'Depth: {depth} Split created. threshold {best_thresh}, best feature {best_feature}')
         
-        #create child nodes
+         #create child nodes
         left_idxs, right_idxs = self._split(X[:, best_feature],best_thresh)
         left = self._grow_tree(X[left_idxs, :], y[left_idxs], depth+1) 
         right = self._grow_tree(X[right_idxs, :], y[right_idxs], depth+1)
@@ -115,6 +127,7 @@ class DT:
         return -np.sum([p * np.log(p) for p in ps if p>0])
         
         
+        
     def _most_common_label(self, y):
         count = Counter(y)
         value = count.most_common(1)[0][0] #https://docs.python.org/3/library/collections.html#collections.Counter
@@ -137,20 +150,19 @@ class DT:
 
 
 
-
 class RF:
-    def __init__(self, certanity_needed=0.6, n_trees=25,max_depth=10,min_samples_split=2, n_features=20):
+    def __init__(self, n_trees=N_TREES,max_depth=MAX_DEPTH,min_samples_split=MIN_SAMPLES_SPLIT, n_features=N_FEATURES):
         self.n_trees=n_trees
         self.max_depth=max_depth
         self.min_samples_split=min_samples_split
-        self.certainty_needed=certanity_needed
         self.n_features=n_features
         self.trees=[]
         
         
     def fit(self, X, y):
         self.trees = []
-        for _ in range(self.n_trees):
+        for i in range(self.n_trees):
+            
             tree = DT(max_depth=self.max_depth,
                min_samples_split=self.min_samples_split,
                n_features=self.n_features)
@@ -159,7 +171,7 @@ class RF:
             
             X_sample, y_sample = self._samples(X, y)
             tree.fit(X_sample, y_sample)
-            print(f"Tree {len(self.trees)} done!\nTraining progress: {round(len(self.trees)/self.n_trees,2)}%")
+            print(f"Tree {len(self.trees)+1} done!\nTraining progress: {round((1+len(self.trees))/self.n_trees,2)*100}%")
             self.trees.append(tree) #appending tree to the forest
             
     def _samples(self, X, y): #what to name this
@@ -172,20 +184,35 @@ class RF:
         value = count.most_common(1)[0][0] #https://docs.python.org/3/library/collections.html#collections.Counter
         return value
         
-    def _certainty(self, y):
-        count = Counter(y)
-        if min(count[True],count[False])/max(count[True],count[False])<self.certainty_needed:
-            return count.most_common(1)[0][0]
-        return 0
+    def _aggregate_predictions(self, predictions, certanity_perc): #if the tree's not confident enought in the choices, it doesn't say a prediction.
+        count = Counter(predictions)
+        total_votes = self.n_trees
+        most_common_label, num_votes = count.most_common(1)[0]
+
+        certainty = num_votes/total_votes
+        if certainty >= certanity_perc:
+            return [most_common_label,certainty]
+
+        else:
+            return [None,certainty]
             
 
     
         
-    def predict(self, X):
-        predictions = np.array([tree.predict(X) for tree in self.trees]) #predict is a 2d array with the arrays containing each prediction for every x in our testing subset [[tree_0_prediction_0,tree_0_prediction_1,...tree_0_prediction_n],...[tree_n_prediction_0,...tree_n_prediction_n]]
+    def predict(self, X, normal=True, certainty_perc=0.5):
+        #predict is a 2d array with the arrays containing each prediction for every x in our testing subset [[tree_0_prediction_0,tree_0_prediction_1,...tree_0_prediction_n],...[tree_n_prediction_0,...tree_n_prediction_n]]
         #but what we want to work with is a 2d array which contains sub arrays that have all the predictions from all the trees for just one x. So [[tree_0_prediction_0, tree_1_prediction_0,...tree_n_prediction_0],...[tree_0_pediction_n,...tree_n_prediction_n]]
-        tree_preds = np.swapaxes(predictions, 0, 1) #
-        predictions=np.array([self._most_common_label(pred) for pred in tree_preds])
+        if normal:
+            tree_preds = np.array([tree.predict(X) for tree in self.trees])
+            tree_preds = np.swapaxes(tree_preds, 0, 1) #
+
+            predictions=np.array([self._most_common_label(pred) for pred in tree_preds])
+        
+        else:
+            tree_preds = np.array([tree.predict(X) for tree in self.trees])
+            tree_preds = np.swapaxes(tree_preds, 0, 1) #
+
+            predictions=np.array([self._aggregate_predictions(pred,certainty_perc) for pred in tree_preds])
+        
         return predictions
     
-        

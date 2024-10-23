@@ -6,6 +6,7 @@ import pandas as pd
 #idk if the os library works on linux and mac or not...
 
 def correct_file(file_name,dayfirst = False, period=60,separator=',',predicted = 5): # period is in minutes for now, it was originally created for 60 min resolution data
+    print(os.getcwd())
     path = os.path.join(os.getcwd(), "data")
     file_path = os.path.join(path,file_name)
     output_path = os.path.join(path,("labeled_"+file_name))

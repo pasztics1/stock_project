@@ -162,9 +162,7 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
     print(df_merged.head())
     
     
-    output_path = os.path.join(path,("features_"+ask_file_name))
+    output_path = os.path.join(path,(f"features_{PRECENTAGE}{ask_file_name}"))
     df_merged.to_csv(output_path, index=False)
     
-    return f"Succesfully added features to {ask_file_name}"
-
-print(add_features("","",0.2))
+    return f"Succesfully added features to {ask_file_name} with {PRECENTAGE*100}% of the data"
