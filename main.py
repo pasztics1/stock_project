@@ -3,12 +3,12 @@
 #yahoofinance
 import pandas as pd
 import numpy as np
-# import yfinance as yf
-                            
-from read_data import correct_format
 from collections import Counter
-#cd C:\Users\Surface\Desktop\binary_classifier_project
 
+#these are needed for speeding up the fitting process
+from tqdm import tqdm #needed for graphing
+from multiprocessing import shared_memory #needed for shared memory
+from joblib import Parallel, delayed #needed for paralel processing
 
 #ideas:
   #improvement of feature selection
@@ -16,9 +16,9 @@ from collections import Counter
 
 #HYPERPARAMETERS#
 
-N_TREES = 100    #30 This was modified
-MAX_DEPTH = 20   #10 
-MIN_SAMPLES_SPLIT = 10  #2 this was modified
+N_TREES = 250    #30 This was modified
+MAX_DEPTH = 15   #10 
+MIN_SAMPLES_SPLIT = 2  #2 this was modified
 N_FEATURES = 7
 
 #
@@ -207,27 +207,65 @@ class RF:
     
 from joblib import Parallel, delayed #needed for paralell processing
 
+
 class RF_boosted:
-    def __init__(self, n_trees=N_TREES, max_depth=MAX_DEPTH, min_samples_split=MIN_SAMPLES_SPLIT, n_features=N_FEATURES):
+    def __init__(self, n_trees=N_TREES, max_depth=MAX_DEPTH, min_samples_split=MIN_SAMPLES_SPLIT, n_features=N_FEATURES, n_jobs=-1):
         self.n_trees = n_trees
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.n_features = n_features
+        self.n_jobs = n_jobs
         self.trees = []
 
-    def _build_tree(self, X, y):
+    def _build_tree(self, X_shm, y_shm, X_shape, y_shape):
+        # Access the shared memory arrays
+        existing_X = np.ndarray(X_shape, dtype=np.float64, buffer=X_shm.buf)
+        existing_y = np.ndarray(y_shape, dtype=np.int64, buffer=y_shm.buf)
+        
+        # Create a DT instance and perform bootstrap sampling
         tree = DT(max_depth=self.max_depth, min_samples_split=self.min_samples_split, n_features=self.n_features)
-        X_sample, y_sample = self._samples(X, y)
+        X_sample, y_sample = self._samples(existing_X, existing_y)
         tree.fit(X_sample, y_sample)
         return tree
 
     def fit(self, X, y):
-        self.trees = Parallel(n_jobs=-1)(delayed(self._build_tree)(X, y) for _ in range(self.n_trees))
+        # Create shared memory blocks for X and y
+        shm_X = shared_memory.SharedMemory(create=True, size=X.nbytes)
+        shm_y = shared_memory.SharedMemory(create=True, size=y.nbytes)
+
+        # Create memory-mapped arrays pointing to the shared memory
+        shared_X = np.ndarray(X.shape, dtype=X.dtype, buffer=shm_X.buf)
+        shared_y = np.ndarray(y.shape, dtype=y.dtype, buffer=shm_y.buf)
+
+        # Copy data into shared memory
+        np.copyto(shared_X, X)
+        np.copyto(shared_y, y)
+
+        # Parallel building of trees with tqdm progress tracking
+        with tqdm(total=self.n_trees, desc="Building Trees") as pbar:
+            self.trees = Parallel(n_jobs=self.n_jobs)(
+                delayed(self._build_tree)(shm_X, shm_y, X.shape, y.shape) for _ in range(self.n_trees)
+            )
+            for _ in range(self.n_trees):
+                pbar.update(1)
+
+        # Close and unlink shared memory
+        shm_X.close()
+        shm_X.unlink()
+        shm_y.close()
+        shm_y.unlink()
 
     def _samples(self, X, y):
+        # Bootstrap sampling directly from shared memory array
         n_samples = X.shape[0]
         idxs = np.random.choice(n_samples, n_samples, replace=True)
         return X[idxs], y[idxs]
+
+    def predict(self, X, certainty_perc=0.5):
+        # Predict using the trained trees and aggregate results
+        tree_preds = np.array([tree.predict(X) for tree in self.trees])
+        tree_preds = np.swapaxes(tree_preds, 0, 1)
+        return np.array([self._aggregate_predictions(pred, certainty_perc) for pred in tree_preds])
 
     def _aggregate_predictions(self, predictions, certanity_perc): #if the tree's not confident enought in the choices, it doesn't say a prediction.
         count = Counter(predictions)
@@ -240,15 +278,4 @@ class RF_boosted:
 
         else:
             return [None,certainty]
-            
 
-    
-        
-    def predict(self, X, certainty_perc=0.5):
-        #predict is a 2d array with the arrays containing each prediction for every x in our testing subset [[tree_0_prediction_0,tree_0_prediction_1,...tree_0_prediction_n],...[tree_n_prediction_0,...tree_n_prediction_n]]
-        #but what we want to work with is a 2d array which contains sub arrays that have all the predictions from all the trees for just one x. So [[tree_0_prediction_0, tree_1_prediction_0,...tree_n_prediction_0],...[tree_0_pediction_n,...tree_n_prediction_n]]
-
-        tree_preds = np.array([tree.predict(X) for tree in self.trees])
-        tree_preds = np.swapaxes(tree_preds, 0, 1) #
-        
-        return np.array([self._aggregate_predictions(pred,certainty_perc) for pred in tree_preds]) #returning filtered predictions

@@ -31,6 +31,7 @@ from datetime import datetime
 import time
 
 import pandas as pd
+import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
 from read_data import correct_format
@@ -83,8 +84,8 @@ def add_earnings_feature_unix(df, earnings_dates, date_column='Datetime'):
 def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst = True, predicted=5): #void function, just adds the features to a merged csv based on ask and bid data.
     
     #Merging dataframes with bid and ask data
-    df_bid = correct_file(bid_file_name,dayfirst)
-    df_ask = correct_file(ask_file_name,dayfirst)
+    df_bid = correct_format(bid_file_name,dayfirst)
+    df_ask = correct_format(ask_file_name,dayfirst)
     
     df=pd.merge(df_bid,df_ask, on="Datetime", suffixes=('_BID', '_ASK'))
     
@@ -203,17 +204,14 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
     
     #Determining the y label
     if label:
-        print(predicted)
-        
-        df_merged['Higher'] = False 
+        print("Adding labels")
+        df_merged['Higher'] = 0 
         for i in range(0, len(df_merged)-(predicted)):
             if df_merged['Mid_Price'].iloc[i+predicted]>df_merged['Mid_Price'].iloc[i]:
-                df_merged.loc[i,'Higher'] = True
+                df_merged.loc[i,'Higher'] = 1
             
             #this way the last 5 values don't get a "Higher" value
-                
-            
-            df_merged['Higher'] = df_merged['Higher'].astype(bool)
+            df_merged['Higher'] = df_merged['Higher'].astype(np.int64)
         
     df_merged = df_merged.iloc[int(df.shape[0]-df.shape[0]*PRECENTAGE):-5] # Include {precentage}% of a dataset for quicker fitting
 

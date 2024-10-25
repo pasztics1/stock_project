@@ -16,39 +16,43 @@ import pandas as pd
 import pickle
 
 
-from main import RF,
+from main import RF,RF_boosted
 from feature_engineering import add_features
 from read_data import correct_format
 
 #hyperparams
-PERC_DATA_USED = 0.15
+PERC_DATA_USED = 0.05
 
 #initializing file names for i/o
 ask_file_name = "AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv"
 bid_file_name = "AAPL.USUSD_Candlestick_1_M_BID_11.10.2021-05.10.2024.csv"
 features_name = f'features_{PERC_DATA_USED}{ask_file_name}'
 
-#adding feature engineering to our data
-add_features(ask_file_name,bid_file_name,PERC_DATA_USED)
+#adding feature engineering to our data if it doesn't exist
+if not os.path.isfile(os.path.join(path,features_name)):
+    add_features(ask_file_name,bid_file_name,PERC_DATA_USED)
+else:
+    print(f"{features_name} already exists!")
 
 #https://numpy.org/devdocs/user/how-to-io.html
 data = correct_format(features_name)
 
 X = data.iloc[:, 1:-1].values #first row's not included, since it's date
 y = data.iloc[:, -1].values
-print(data.head())
+
+X = X.astype(np.float64)
+y = y.astype(np.int64)
+
 
 
 #splitting the data into training and test portions
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1234)
 
 #training the data
-clf = RF()
+clf = RF_boosted()
 clf.fit(X_train, y_train)
 
 #Saving model parameters
 with open(f'save_model.pkl', 'wb') as f:
     pickle.dump(clf, f)
-
-
 

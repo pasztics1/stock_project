@@ -1,6 +1,8 @@
 #ctr alt enter - start cell
 #alt shift num lock - cursor
 #ctrl + - run code
+import os
+path = os.path.join(os.getcwd(), "data")
 
 from sklearn import datasets
 from sklearn.model_selection import train_test_split
@@ -14,20 +16,29 @@ from read_data import correct_format
 from feature_engineering import add_features
 PERC_DATA_USED = 1
 
-add_features("AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv","AAPL.USUSD_Candlestick_1_M_BID_11.10.2021-05.10.2024.csv",PERC_DATA_USED)
-#set the rigth directory, it's now in the data folder
+ask_file_name = "AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv"
+bid_file_name = "AAPL.USUSD_Candlestick_1_M_BID_11.10.2021-05.10.2024.csv"
+features_name = f'features_{PERC_DATA_USED}{ask_file_name}'
+
+if not os.path.isfile(os.path.join(path,features_name)): #check if the file already exists
+    add_features(ask_file_name,bid_file_name,PERC_DATA_USED)
+else:
+    print(f"{features_name} already exists!")
+
 
 #it's the ask file here bcs that's what the add_features gives back
 data = correct_format(f'features_{PERC_DATA_USED}AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv') #https://numpy.org/devdocs/user/how-to-io.html
 
 X = data.iloc[:, 1:-1].values #first row's not included, since it's date
 y = data.iloc[:, -1].values
-print(data.head())
 
-print(f'Actual data: true: {np.sum(y==True)} false: {np.sum(y==False)}\n')
+X = X.astype(np.float64)
+y = y.astype(np.int64)
+
+print(f'Actual data: true: {np.sum(y==1)} false: {np.sum(y==0)}\n')
 
 def accuracy(y_test, y_pred):
-    print(f'Before: true: {np.sum(y_pred==True)}, false: {np.sum(y_pred==False)}, none: {np.count_nonzero(y_pred==None)}')
+    print(f'Before: true: {np.sum(y_pred==1)}, false: {np.sum(y_pred==0)}, none: {np.count_nonzero(y_pred==None)}')
         
     #remove None before calculating accuracy
     mask = np.array([x is not None for x in y_pred])
@@ -36,9 +47,9 @@ def accuracy(y_test, y_pred):
     y_test_filtered = y_test[mask]
 
 
-    print(f'Ratio of confident answers{len(y_pred_filtered)/len(y_test)}')
+    print(f'Ratio of confident answers {len(y_pred_filtered)/len(y_test)}')
 
-    print(f'After: true {np.sum(y_pred_filtered==True)}, false: {np.sum(y_pred_filtered==False)}, none: {np.count_nonzero(y_pred_filtered==None)}') 
+    print(f'After: true {np.sum(y_pred_filtered==1)}, false: {np.sum(y_pred_filtered==0)}, none: {np.count_nonzero(y_pred_filtered==None)}') 
     return np.sum(y_test_filtered == y_pred_filtered) / len(y_test_filtered)
 
 
@@ -59,7 +70,7 @@ for i in range(len(files)):
     with open(files[i], 'rb') as f:
         clf = pickle.load(f)
         for certainty in certaintys:
-            predictions = clf.predict(X,False,certainty)
+            predictions = clf.predict(X,certainty)
             all_predictions[i].append(predictions)
     
 for i in range(len(all_predictions)):
