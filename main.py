@@ -16,9 +16,9 @@ from joblib import Parallel, delayed #needed for paralel processing
 
 #HYPERPARAMETERS#
 
-N_TREES = 250    #30 This was modified
-MAX_DEPTH = 15   #10 
-MIN_SAMPLES_SPLIT = 2  #2 this was modified
+N_TREES = 100    #30 This was modified
+MAX_DEPTH = 5   #10 
+MIN_SAMPLES_SPLIT = 5  #2 this was modified
 N_FEATURES = 7
 
 #
@@ -51,12 +51,10 @@ class DT:
     def _grow_tree(self, X, y, depth=0): #going to be run recursively (remember the tutorial)
         n_samples, n_feats = X.shape #shape returns 2 values and this way you can give those to 2 variables
         n_labels = len(np.unique(y))
-        print("Check")
 
         # checking for stopping criteria    
         if (depth>=self.max_depth or n_labels==1 or n_samples<self.min_samples_split):
             leaf_value = self._most_common_label(y)
-            print('Stopping criteria')
             return Node(value=leaf_value) #that's what the "*" does
         
         
@@ -64,10 +62,8 @@ class DT:
 
         #best split based on IG
         best_feature, best_thresh = self._best_split(X, y, feat_idxs) #feat_idx is the features I want to include when creating a new split, that's where randomness is created
-        
-        print(f'Depth: {depth} Split created. threshold {best_thresh}, best feature {best_feature}')
-        
-         #create child nodes
+
+        #create child nodes
         left_idxs, right_idxs = self._split(X[:, best_feature],best_thresh)
         left = self._grow_tree(X[left_idxs, :], y[left_idxs], depth+1) 
         right = self._grow_tree(X[right_idxs, :], y[right_idxs], depth+1)
