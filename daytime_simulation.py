@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-from labeling import correct_file 
+from read_data import correct_format 
 from main import RF
 
 #df struct: Datetime, Open, High, Low, Close, Adj Close, Volume, Higher

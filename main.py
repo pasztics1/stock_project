@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 # import yfinance as yf
                             
-from labeling import correct_file
+from read_data import correct_format
 from collections import Counter
 #cd C:\Users\Surface\Desktop\binary_classifier_project
 
@@ -179,11 +179,56 @@ class RF:
         idxs = np.random.choice(n_samples, n_samples, replace=True) #as you can see I set the replace to true, so the same info is going to be given to multiple trees
         return X[idxs], y[idxs]
     
-    def _most_common_label(self, y):
-        count = Counter(y)
-        value = count.most_common(1)[0][0] #https://docs.python.org/3/library/collections.html#collections.Counter
-        return value
+    
+    def _aggregate_predictions(self, predictions, certanity_perc): #if the tree's not confident enought in the choices, it doesn't say a prediction.
+        count = Counter(predictions)
+        total_votes = self.n_trees
+        most_common_label, num_votes = count.most_common(1)[0]
+
+        certainty = num_votes/total_votes
+        if certainty >= certanity_perc:
+            return [most_common_label,certainty]
+
+        else:
+            return [None,certainty]
+            
         
+    def predict(self, X, certainty_perc=0.5):
+        #predict is a 2d array with the arrays containing each prediction for every x in our testing subset [[tree_0_prediction_0,tree_0_prediction_1,...tree_0_prediction_n],...[tree_n_prediction_0,...tree_n_prediction_n]]
+        #but what we want to work with is a 2d array which contains sub arrays that have all the predictions from all the trees for just one x. So [[tree_0_prediction_0, tree_1_prediction_0,...tree_n_prediction_0],...[tree_0_pediction_n,...tree_n_prediction_n]]
+
+        tree_preds = np.array([tree.predict(X) for tree in self.trees])
+        tree_preds = np.swapaxes(tree_preds, 0, 1) #
+        
+        return np.array([self._aggregate_predictions(pred,certainty_perc) for pred in tree_preds]) #returning filtered predictions
+
+
+    
+    
+from joblib import Parallel, delayed #needed for paralell processing
+
+class RF_boosted:
+    def __init__(self, n_trees=N_TREES, max_depth=MAX_DEPTH, min_samples_split=MIN_SAMPLES_SPLIT, n_features=N_FEATURES):
+        self.n_trees = n_trees
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.n_features = n_features
+        self.trees = []
+
+    def _build_tree(self, X, y):
+        tree = DT(max_depth=self.max_depth, min_samples_split=self.min_samples_split, n_features=self.n_features)
+        X_sample, y_sample = self._samples(X, y)
+        tree.fit(X_sample, y_sample)
+        return tree
+
+    def fit(self, X, y):
+        self.trees = Parallel(n_jobs=-1)(delayed(self._build_tree)(X, y) for _ in range(self.n_trees))
+
+    def _samples(self, X, y):
+        n_samples = X.shape[0]
+        idxs = np.random.choice(n_samples, n_samples, replace=True)
+        return X[idxs], y[idxs]
+
     def _aggregate_predictions(self, predictions, certanity_perc): #if the tree's not confident enought in the choices, it doesn't say a prediction.
         count = Counter(predictions)
         total_votes = self.n_trees
@@ -199,20 +244,11 @@ class RF:
 
     
         
-    def predict(self, X, normal=True, certainty_perc=0.5):
+    def predict(self, X, certainty_perc=0.5):
         #predict is a 2d array with the arrays containing each prediction for every x in our testing subset [[tree_0_prediction_0,tree_0_prediction_1,...tree_0_prediction_n],...[tree_n_prediction_0,...tree_n_prediction_n]]
         #but what we want to work with is a 2d array which contains sub arrays that have all the predictions from all the trees for just one x. So [[tree_0_prediction_0, tree_1_prediction_0,...tree_n_prediction_0],...[tree_0_pediction_n,...tree_n_prediction_n]]
-        if normal:
-            tree_preds = np.array([tree.predict(X) for tree in self.trees])
-            tree_preds = np.swapaxes(tree_preds, 0, 1) #
 
-            predictions=np.array([self._most_common_label(pred) for pred in tree_preds])
+        tree_preds = np.array([tree.predict(X) for tree in self.trees])
+        tree_preds = np.swapaxes(tree_preds, 0, 1) #
         
-        else:
-            tree_preds = np.array([tree.predict(X) for tree in self.trees])
-            tree_preds = np.swapaxes(tree_preds, 0, 1) #
-
-            predictions=np.array([self._aggregate_predictions(pred,certainty_perc) for pred in tree_preds])
-        
-        return predictions
-    
+        return np.array([self._aggregate_predictions(pred,certainty_perc) for pred in tree_preds]) #returning filtered predictions

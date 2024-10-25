@@ -10,7 +10,7 @@ import pickle
 
 
 from main import DT,RF
-from labeling import correct_file
+from read_data import correct_format
 from feature_engineering import add_features
 PERC_DATA_USED = 1
 
@@ -18,7 +18,7 @@ add_features("AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv","AAPL.US
 #set the rigth directory, it's now in the data folder
 
 #it's the ask file here bcs that's what the add_features gives back
-data = correct_file(f'features_{PERC_DATA_USED}AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv') #https://numpy.org/devdocs/user/how-to-io.html
+data = correct_format(f'features_{PERC_DATA_USED}AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv') #https://numpy.org/devdocs/user/how-to-io.html
 
 X = data.iloc[:, 1:-1].values #first row's not included, since it's date
 y = data.iloc[:, -1].values

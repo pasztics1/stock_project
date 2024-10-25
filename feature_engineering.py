@@ -27,11 +27,60 @@
 #FOR LAGGED FEATURES, SUPPORT & RESISTANCE LEVELS THE FIRST AND LAST VALUES ARE NON
 
 import os
+from datetime import datetime
+import time
 
 import pandas as pd
-from labeling import correct_file
+from sklearn.preprocessing import MinMaxScaler
 
-def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst = True, predicted=5):
+from read_data import correct_format
+
+def normalize_features(df, exclude_columns=None):
+    """
+    Normalizes numeric columns in the dataframe using Min-Max Scaling.
+    Parameters:
+    - df: The input dataframe to be normalized
+    - exclude_columns: List of columns to exclude from normalization (like target variables, datetime, etc.)
+    """
+    if exclude_columns is None:
+        exclude_columns = []
+
+    # Identify numeric columns excluding the ones in exclude_columns
+    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+    numeric_cols = [col for col in numeric_cols if col not in exclude_columns]
+
+    # Apply Min-Max Scaling to numeric columns
+    scaler = MinMaxScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+
+    return df
+
+
+def add_earnings_feature_unix(df, earnings_dates, date_column='Datetime'):
+    """
+    Adds a feature to the dataframe indicating the difference in Unix timestamps until the next earnings call.
+    Parameters:
+    - df: The input dataframe containing a datetime column
+    - earnings_dates: List of earnings call dates as datetime objects
+    - date_column: The name of the column containing the datetime information
+    """
+    def get_unix_diff_until_next_earnings(date):
+        date_unix = int(time.mktime(date.timetuple()))  # Current date in Unix timestamp
+
+        # Find the next earnings call date that occurs after the given date
+        next_earnings_date = next((ed for ed in earnings_dates if ed > date), None)
+
+        if not next_earnings_date:
+            return None
+
+        next_earnings_unix = int(time.mktime(next_earnings_date.timetuple()))
+        return next_earnings_unix - date_unix
+
+    # Apply the function to each row in the dataframe
+    df['Unix_Diff_Until_Earnings'] = df[date_column].apply(lambda x: get_unix_diff_until_next_earnings(x))
+    return df
+
+def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst = True, predicted=5): #void function, just adds the features to a merged csv based on ask and bid data.
     
     #Merging dataframes with bid and ask data
     df_bid = correct_file(bid_file_name,dayfirst)
@@ -54,6 +103,19 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
     df['Month'] = df['Datetime'].dt.month
     df['Day_Type'] = df['Datetime'].dt.weekday.apply(lambda x: 1 if x == 0 else (2 if x == 4 else 0))  # 1 for Monday, 2 for Friday, 0 otherwise
 
+    #adding a feature that tracks how long untill the next earnings call
+    
+    #create simplified earnings call dates
+    apple_earnings_calls = sorted([
+    datetime(2025, 2, 6), datetime(2025, 5, 1), datetime(2025, 7, 31), datetime(2025, 10, 30),
+    datetime(2024, 2, 1), datetime(2024, 5, 2), datetime(2024, 8, 1), datetime(2024, 11, 7),
+    datetime(2023, 2, 2), datetime(2023, 5, 4), datetime(2023, 8, 3), datetime(2023, 11, 2),
+    datetime(2022, 1, 27), datetime(2022, 4, 28), datetime(2022, 7, 28), datetime(2022, 10, 27),
+    datetime(2021, 1, 27), datetime(2021, 4, 28), datetime(2021, 7, 27), datetime(2021, 10, 28),
+    datetime(2020, 1, 28), datetime(2020, 4, 30), datetime(2020, 7, 30), datetime(2020, 10, 29),
+    datetime(2019, 1, 29), datetime(2019, 4, 30), datetime(2019, 7, 30), datetime(2019, 10, 30),
+    ])
+    df = add_earnings_feature_unix(df,apple_earnings_calls)
     #
 
     #Market features#
@@ -71,6 +133,7 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
 
     df_merged = df_merged.drop(columns=['date']) #dropped it
     #
+    
 
     #Moving averages
     df_merged['SMA_5'] = df_merged['Mid_Price'].rolling(window=5).mean()
@@ -139,10 +202,6 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
     
     
     #Determining the y label
-    
-    
-    
-    
     if label:
         print(predicted)
         
@@ -159,10 +218,24 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
     df_merged = df_merged.iloc[int(df.shape[0]-df.shape[0]*PRECENTAGE):-5] # Include {precentage}% of a dataset for quicker fitting
 
     df_merged = df_merged.dropna()
-    print(df_merged.head())
+    df_normalized = normalize_features(df_merged,['Spread','Day_Type','Unix_Diff_Until_Earnings'])
+    
+    #the rating column can contain 5 values: extreme fear, fear, neutral, greed, extreme greed. I want to normalize this as well.
+    ordinal_mapping = {
+        "extreme fear": 0,
+        "fear": 1,
+        "neutral": 2,
+        "greed": 3,
+        "extreme greed": 4
+    }
+    
+    # Map the ordinal column values to integers
+    df_normalized['rating'] = df_normalized['rating'].map(ordinal_mapping)
+    
+
     
     
     output_path = os.path.join(path,(f"features_{PRECENTAGE}{ask_file_name}"))
-    df_merged.to_csv(output_path, index=False)
-    
-    return f"Succesfully added features to {ask_file_name} with {PRECENTAGE*100}% of the data"
+    df_normalized.to_csv(output_path, index=False)
+    print(f"Succesfully added features to {ask_file_name} with {PRECENTAGE*100}% of the data")    
+     
