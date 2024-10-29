@@ -16,8 +16,8 @@ from joblib import Parallel, delayed #needed for paralel processing
 
 #HYPERPARAMETERS#
 
-N_TREES = 100    #30 This was modified
-MAX_DEPTH = 5   #10 
+N_TREES = 400    #30 This was modified
+MAX_DEPTH = 18   #10 
 MIN_SAMPLES_SPLIT = 5  #2 this was modified
 N_FEATURES = 7
 
@@ -52,9 +52,12 @@ class DT:
         n_samples, n_feats = X.shape #shape returns 2 values and this way you can give those to 2 variables
         n_labels = len(np.unique(y))
 
+
         # checking for stopping criteria    
         if (depth>=self.max_depth or n_labels==1 or n_samples<self.min_samples_split):
+            print('Stoppin criteria')
             leaf_value = self._most_common_label(y)
+
             return Node(value=leaf_value) #that's what the "*" does
         
         
@@ -62,8 +65,10 @@ class DT:
 
         #best split based on IG
         best_feature, best_thresh = self._best_split(X, y, feat_idxs) #feat_idx is the features I want to include when creating a new split, that's where randomness is created
-
-        #create child nodes
+        
+        print(f'Depth: {depth} Split created. threshold {best_thresh}, best feature {best_feature}')
+        
+         #create child nodes
         left_idxs, right_idxs = self._split(X[:, best_feature],best_thresh)
         left = self._grow_tree(X[left_idxs, :], y[left_idxs], depth+1) 
         right = self._grow_tree(X[right_idxs, :], y[right_idxs], depth+1)
@@ -222,6 +227,7 @@ class RF_boosted:
         tree = DT(max_depth=self.max_depth, min_samples_split=self.min_samples_split, n_features=self.n_features)
         X_sample, y_sample = self._samples(existing_X, existing_y)
         tree.fit(X_sample, y_sample)
+        print(f"Tree {len(self.trees)+1} done!\nTraining progress: {round((1+len(self.trees))/self.n_trees,2)*100}%")
         return tree
 
     def fit(self, X, y):

@@ -63,7 +63,7 @@ setup = ''
 #be sure to include actual names, or automatize the process
 #files = ['save_model.pkl','5prec_20tree_10depth_057.pkl','20prec_20tree_10depth_056.pkl','50prec_20tree_10depth_057.pkl','100perc_20tree_10depth_05677.pkl']
 
-files = ['save_model.pkl']
+files = ['15prec_250tree_15depth.pkl']
 
 for i in range(len(files)):
     all_predictions.append([])
@@ -77,8 +77,8 @@ for i in range(len(all_predictions)):
     print(f"\nResults for model: {files[i]}\n")
 
     for j in range(len(certaintys)):
-            print(f'{certaintys[j]} certanty accuracy:', sep='')
             acc = accuracy(y, all_predictions[i][j][:,0])
+            print(f'{certaintys[j]} certanty accuracy:', sep='')
             print(acc)
             
             

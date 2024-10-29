@@ -18,4 +18,3 @@ def correct_format(file_name,dayfirst = False, period=60,separator=',',predicted
         df['Datetime'] = pd.to_datetime(df['Datetime'])
                         
     return df
-

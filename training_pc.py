@@ -21,7 +21,7 @@ from feature_engineering import add_features
 from read_data import correct_format
 
 #hyperparams
-PERC_DATA_USED = 0.01
+PERC_DATA_USED = 0.6
 
 #initializing file names for i/o
 ask_file_name = "AAPL.USUSD_Candlestick_1_M_ASK_11.10.2021-05.10.2024.csv"
@@ -46,11 +46,11 @@ y = y.astype(np.int64)
 
 
 #splitting the data into training and test portions
-#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1234)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1234)
 
 #training the data
 clf = RF_boosted()
-clf.fit(X, y)
+clf.fit(X_train, y_train)
 
 #Saving model parameters
 with open(f'save_model.pkl', 'wb') as f:
