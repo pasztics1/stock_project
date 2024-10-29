@@ -26,6 +26,10 @@
 
 #FOR LAGGED FEATURES, SUPPORT & RESISTANCE LEVELS THE FIRST AND LAST VALUES ARE NON
 
+
+#PCA?
+
+
 import os
 from datetime import datetime
 import time
@@ -92,6 +96,8 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, label=True, dayfirst 
     #Calculating BID and ASK features
     df['Mid_Price'] = (df['Close_BID'] + df['Close_ASK']) / 2
     df['Spread'] = df['Close_ASK'] - df['Close_BID']
+    
+    #dropping Open_BID,High_BID,Low_BID,Close_BID,Open_ASK,High_ASK,Low_ASK,Close_ASK?
     
     #since Volume_BID = Volume_ASK
     df = df.drop(columns="Volume_BID")
