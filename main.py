@@ -16,10 +16,10 @@ from joblib import Parallel, delayed #needed for paralel processing
 
 #HYPERPARAMETERS#
 
-N_TREES = 400    #30 This was modified
-MAX_DEPTH = 18   #10 
-MIN_SAMPLES_SPLIT = 5  #2 this was modified
-N_FEATURES = 7
+N_TREES = 100    #30 This was modified
+MAX_DEPTH = 12   #10 
+MIN_SAMPLES_SPLIT = 10  #2 this was modified
+N_FEATURES = 4
 
 #
 
@@ -49,6 +49,7 @@ class DT:
         self.root = self._grow_tree(X,y)
          
     def _grow_tree(self, X, y, depth=0): #going to be run recursively (remember the tutorial)
+        print('Check')
         n_samples, n_feats = X.shape #shape returns 2 values and this way you can give those to 2 variables
         n_labels = len(np.unique(y))
 
@@ -206,8 +207,8 @@ class RF:
 
     
     
-from joblib import Parallel, delayed #needed for paralell processing
-
+from joblib import Parallel, delayed
+from multiprocessing import shared_memory
 
 class RF_boosted:
     def __init__(self, n_trees=N_TREES, max_depth=MAX_DEPTH, min_samples_split=MIN_SAMPLES_SPLIT, n_features=N_FEATURES, n_jobs=-1):
@@ -227,7 +228,6 @@ class RF_boosted:
         tree = DT(max_depth=self.max_depth, min_samples_split=self.min_samples_split, n_features=self.n_features)
         X_sample, y_sample = self._samples(existing_X, existing_y)
         tree.fit(X_sample, y_sample)
-        print(f"Tree {len(self.trees)+1} done!\nTraining progress: {round((1+len(self.trees))/self.n_trees,2)*100}%")
         return tree
 
     def fit(self, X, y):
@@ -243,13 +243,13 @@ class RF_boosted:
         np.copyto(shared_X, X)
         np.copyto(shared_y, y)
 
-        # Parallel building of trees with tqdm progress tracking
-        with tqdm(total=self.n_trees, desc="Building Trees") as pbar:
-            self.trees = Parallel(n_jobs=self.n_jobs)(
-                delayed(self._build_tree)(shm_X, shm_y, X.shape, y.shape) for _ in range(self.n_trees)
-            )
-            for _ in range(self.n_trees):
-                pbar.update(1)
+        # Parallel building of trees
+        self.trees = Parallel(n_jobs=self.n_jobs)(
+            delayed(self._build_tree)(shm_X, shm_y, X.shape, y.shape) for _ in range(self.n_trees)
+        )
+
+        # Optional: Print a message after all trees have been built
+        print(f"All {self.n_trees} trees have been built.")
 
         # Close and unlink shared memory
         shm_X.close()
@@ -269,15 +269,12 @@ class RF_boosted:
         tree_preds = np.swapaxes(tree_preds, 0, 1)
         return np.array([self._aggregate_predictions(pred, certainty_perc) for pred in tree_preds])
 
-    def _aggregate_predictions(self, predictions, certanity_perc): #if the tree's not confident enought in the choices, it doesn't say a prediction.
+    def _aggregate_predictions(self, predictions, certainty_perc):
         count = Counter(predictions)
         total_votes = self.n_trees
         most_common_label, num_votes = count.most_common(1)[0]
-
-        certainty = num_votes/total_votes
-        if certainty >= certanity_perc:
-            return [most_common_label,certainty]
-
+        certainty = num_votes / total_votes
+        if certainty >= certainty_perc:
+            return [most_common_label, certainty]
         else:
-            return [None,certainty]
-
+            return [None, certainty]
