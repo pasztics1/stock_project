@@ -1,16 +1,35 @@
 import pandas as pd
 import numpy as np
 import os
-import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import accuracy_score
 
-# Import custom functions
+# Import necessary feature selection and evaluation tools
+from sklearn.feature_selection import (
+    SelectKBest, f_classif, f_regression, mutual_info_classif, mutual_info_regression,
+    RFE
+)
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LassoCV, LogisticRegressionCV
+from sklearn.decomposition import PCA
+from sklearn.inspection import permutation_importance
+
+# If using XGBoost for feature importance
+import xgboost as xgb
+from lightgbm import LGBMClassifier, early_stopping, log_evaluation
+import lightgbm as lgb
+
+# Import custom modules (assuming they exist)
 from read_data import correct_format
-from feature_evaluation import feature_evaluation
 
-def remove_highly_correlated_features(corr_matrix, features, feature_importances, threshold=0.8):
+# Import the updated feature_evaluation function
+# Ensure that the updated feature_evaluation function is in the current namespace or imported appropriately
+# from your_module import feature_evaluation
+
+#THINGS TO FIX#
+#The code at the if is redundant when handling the data.
+#THINGS TO FIX#
+
+
+def remove_highly_correlated_features(corr_matrix, features, feature_importances, importance_col, threshold=0.8):
     """
     Remove features that are highly correlated with each other.
 
@@ -18,6 +37,7 @@ def remove_highly_correlated_features(corr_matrix, features, feature_importances
     - corr_matrix: DataFrame containing the correlation matrix
     - features: List of feature names
     - feature_importances: DataFrame containing feature names and their importance scores
+    - importance_col: String indicating the column name for feature importances
     - threshold: Correlation threshold for removing features
 
     Returns:
@@ -38,8 +58,8 @@ def remove_highly_correlated_features(corr_matrix, features, feature_importances
             correlation = corr_matrix.loc[feature_i, feature_j]
             if correlation >= threshold:
                 # Compare importances
-                importance_i = feature_importances.loc[feature_importances['Feature'] == feature_i, 'Random_Forest_Importance'].values[0]
-                importance_j = feature_importances.loc[feature_importances['Feature'] == feature_j, 'Random_Forest_Importance'].values[0]
+                importance_i = feature_importances.loc[feature_importances['Feature'] == feature_i, importance_col].values[0]
+                importance_j = feature_importances.loc[feature_importances['Feature'] == feature_j, importance_col].values[0]
                 # Remove the less important feature
                 if importance_i >= importance_j:
                     features_to_remove.add(feature_j)
@@ -49,7 +69,7 @@ def remove_highly_correlated_features(corr_matrix, features, feature_importances
     final_features = [feature for feature in features if feature not in features_to_remove]
     return final_features
 
-def select_optimal_features(feature_scores_file, dataset_file, top_n_values, model="random_forest",correlation_threshold=0.8, plot=False):
+def select_optimal_features(feature_scores_file, dataset_file, top_n_values, model="random_forest", correlation_threshold=0.8, plot=False):
     """
     Select the most optimal features based on feature importance and model performance.
 
@@ -57,32 +77,50 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
     - feature_scores_file: Path to the feature importance scores CSV file
     - dataset_file: Path to the dataset CSV file
     - top_n_values: List or range of 'top_n' values to evaluate
+    - model: Model to use for feature importance ('random_forest' or 'light_gbm')
     - correlation_threshold: Correlation threshold for removing features
+    - plot: Boolean to indicate whether to plot performance
 
     Returns:
     - optimal_features: List of the most optimal features
     """
-    # Set the path to your data directory
+    import os
     path = os.path.join(os.getcwd(), "data")
 
-    # Paths to the files
-    feature_scores_path = os.path.join(path, feature_scores_file)
-    dataset_path = os.path.join(path, dataset_file)
+    import pandas as pd
+    import numpy as np
 
+    import matplotlib.pyplot as plt
+    from sklearn.model_selection import TimeSeriesSplit, cross_val_score
+    from sklearn.metrics import accuracy_score, roc_auc_score, classification_report
+    
     # Read the feature importance scores
+    feature_scores_path = os.path.join(path,feature_scores_file)
     feature_scores_df = pd.read_csv(feature_scores_path)
 
-    # Load the dataset
-    data = correct_format(dataset_file)
-    y = data['y']
-    X_all = data.drop('y', axis=1)
 
+    #Read the dataset
+    dataset_path = os.path.join(path,dataset_file)
+
+    print(dataset_file)
+
+    data = correct_format(dataset_file)
+
+    #we only train on the most important features
+
+    y = data.iloc[:, -1].values
+    y = y.astype(np.int8) #!!!!IF NOT CLASSIFIER, IT CAN CAUSE PROBLEMS!!!!
+
+
+    
     performance_metrics = []
-    if model=="random_forest":
+
+    if model == "random_forest":
+        importance_col = 'Random_Forest_Importance'
         for top_n in top_n_values:
             print(f"\nEvaluating top_n = {top_n}")
             # Sort the features by 'Random_Forest_Importance' in descending order
-            top_features_rf = feature_scores_df.sort_values(by='Random_Forest_Importance', ascending=False)
+            top_features_rf = feature_scores_df.sort_values(by=importance_col, ascending=False)
 
             # Get the list of top features
             top_features_list = top_features_rf['Feature'].head(top_n).tolist()
@@ -90,14 +128,17 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             print(top_features_list)
 
             # Extract the data for the top features
-            top_features_data = X_all[top_features_list]
+            top_features_data = data[top_features_list].iloc[:,:].values
+            top_features_data_df = pd.DataFrame(top_features_data, columns=top_features_list)
 
             # Compute the correlation matrix
-            corr_matrix = top_features_data.corr().abs()
+            corr_matrix = top_features_data_df.corr().abs()
             corr_matrix.fillna(0, inplace=True)  # Handle any NaN values
 
             # Remove highly correlated features
-            selected_features = remove_highly_correlated_features(corr_matrix, top_features_list, top_features_rf, threshold=correlation_threshold)
+            selected_features = remove_highly_correlated_features(
+                corr_matrix, top_features_list, top_features_rf, importance_col, threshold=correlation_threshold
+            )
 
             # Number of features removed
             n_removed = len(top_features_list) - len(selected_features)
@@ -106,74 +147,67 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             print(f"Number of features removed due to high correlation: {n_removed}")
 
             # Prepare data with selected features
-            X = X_all[selected_features]
+            X = data[selected_features].iloc[:,:].values
 
             # Convert data types if necessary
             X = X.astype(np.float32)
             y = y.astype(np.int8)
 
-            # Split the data
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42, stratify=y
-            )
+            # Initialize TimeSeriesSplit
+            tscv = TimeSeriesSplit(n_splits=5)
 
-            # Train the Random Forest model
-            model = RandomForestClassifier(
-                n_estimators=100,
-                random_state=42,
-                n_jobs=-1
-            )
-            model.fit(X_train, y_train)
+            # Lists to store metrics
+            fold_accuracies = []
+            fold_cv_accuracies = []
 
-            # Evaluate the model
-            y_pred = model.predict(X_test)
-            accuracy = accuracy_score(y_test, y_pred)
-            print(f"Accuracy with {len(selected_features)} features: {accuracy:.4f}")
+            for fold, (train_index, test_index) in enumerate(tscv.split(X)):
+                X_train, X_test = X[train_index], X[test_index]
+                y_train, y_test = y[train_index], y[test_index]
+                # Train the Random Forest model
+                rf_model = RandomForestClassifier(
+                    n_estimators=100,
+                    random_state=42,
+                    n_jobs=-1,
+                    class_weight='balanced'  # Handle class imbalance
+                )
+                rf_model.fit(X_train, y_train)
 
-            # Cross-validation score
-            cv_scores = cross_val_score(
-                model, X, y, cv=5, scoring='accuracy', n_jobs=-1
-            )
-            mean_cv_score = cv_scores.mean()
-            print(f"Cross-Validation Accuracy with {len(selected_features)} features: {mean_cv_score:.4f}")
+                # Predict and evaluate
+                y_pred = rf_model.predict(X_test)
+                accuracy = accuracy_score(y_test, y_pred)
+                fold_accuracies.append(accuracy)
+                print(f"Fold {fold + 1} Accuracy: {accuracy:.4f}")
+
+                # Cross-validation accuracy
+                cv_scores = cross_val_score(
+                    rf_model, X, y, cv=tscv, scoring='accuracy', n_jobs=-1
+                )
+                mean_cv_score = cv_scores.mean()
+                fold_cv_accuracies.append(mean_cv_score)
+                print(f"Fold {fold + 1} Cross-Validation Accuracy: {mean_cv_score:.4f}")
+
+            # Average metrics across folds
+            avg_accuracy = np.mean(fold_accuracies)
+            avg_cv_accuracy = np.mean(fold_cv_accuracies)
+
+            print(f"Average Accuracy with {len(selected_features)} features: {avg_accuracy:.4f}")
+            print(f"Average Cross-Validated Accuracy: {avg_cv_accuracy:.4f}")
 
             # Record performance metrics
             performance_metrics.append({
                 'n_features_selected': len(selected_features),
                 'top_n': top_n,
-                'accuracy': accuracy,
-                'cv_accuracy': mean_cv_score,
+                'accuracy': avg_accuracy,
+                'cv_accuracy': avg_cv_accuracy,
                 'selected_features': selected_features
             })
 
-        # Find the top_n with the highest cross-validation accuracy
-        performance_df = pd.DataFrame(performance_metrics)
-        optimal_row = performance_df.loc[performance_df['cv_accuracy'].idxmax()]
-        optimal_features = optimal_row['selected_features']
-        optimal_n_features = optimal_row['n_features_selected']
-        optimal_accuracy = optimal_row['cv_accuracy']
-
-        print(f"\nOptimal number of features: {optimal_n_features}")
-        print(f"Cross-Validated Accuracy: {optimal_accuracy:.4f}")
-        print("Optimal Features:")
-        for i, feature in enumerate(optimal_features, start=1):
-            print(f"{i}. {feature}")
-
-        if plot:
-            # Plot the performance
-            plt.figure(figsize=(10, 6))
-            plt.plot(performance_df['n_features_selected'], performance_df['cv_accuracy'], marker='o')
-            plt.xlabel('Number of Features Selected')
-            plt.ylabel('Cross-Validated Accuracy')
-            plt.title('Model Performance vs. Number of Features')
-            plt.grid(True)
-            plt.show()
-
-    elif model == "light_gbm":
+    elif model == "lightgbm":
+        importance_col = 'LightGBM_Importance'
         for top_n in top_n_values:
             print(f"\nEvaluating top_n = {top_n}")
             # Sort the features by 'LightGBM_Importance' in descending order
-            top_features_lgbm = feature_scores_df.sort_values(by='Importance', ascending=False)
+            top_features_lgbm = feature_scores_df.sort_values(by=importance_col, ascending=False)
 
             # Get the list of top features
             top_features_list = top_features_lgbm['Feature'].head(top_n).tolist()
@@ -181,14 +215,18 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             print(top_features_list)
 
             # Extract the data for the top features
-            top_features_data = X_all[top_features_list]
+            top_features_data = data[top_features_list].iloc[:,:].values
+            top_features_data_df = pd.DataFrame(top_features_data, columns=top_features_list)
+
 
             # Compute the correlation matrix
-            corr_matrix = top_features_data.corr().abs()
+            corr_matrix = top_features_data_df.corr().abs()
             corr_matrix.fillna(0, inplace=True)  # Handle any NaN values
 
             # Remove highly correlated features
-            selected_features = remove_highly_correlated_features(corr_matrix, top_features_list, top_features_lgbm, threshold=correlation_threshold)
+            selected_features = remove_highly_correlated_features(
+                corr_matrix, top_features_list, top_features_lgbm, importance_col, threshold=correlation_threshold
+            )
 
             # Number of features removed
             n_removed = len(top_features_list) - len(selected_features)
@@ -197,7 +235,7 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             print(f"Number of features removed due to high correlation: {n_removed}")
 
             # Prepare data with selected features
-            X = X_all[selected_features]
+            X = data[selected_features].iloc[:,:].values
 
             # Convert data types if necessary
             X = X.astype(np.float32)
@@ -212,8 +250,8 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             fold_roc_aucs = []
 
             for fold, (train_index, test_index) in enumerate(tscv.split(X)):
-                X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-                y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+                X_train, X_test = X[train_index], X[test_index]
+                y_train, y_test = y[train_index], y[test_index]
 
                 # Train the LightGBM model
                 lgbm_model = lgb.LGBMClassifier(
@@ -223,8 +261,16 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
                     random_state=42,
                     class_weight='balanced'  # Handle class imbalance
                 )
-                lgbm_model.fit(X_train, y_train, eval_set=[(X_test, y_test)],
-                               eval_metric='binary_logloss', early_stopping_rounds=10, verbose=False)
+
+                # Train the model with the fit() method
+                lgbm_model.fit(
+                    X_train, y_train,
+                    eval_set=[(X_test, y_test)],  # Validation data for early stopping
+                    eval_metric='binary_logloss',  # Metric to evaluate
+                    callbacks=[early_stopping(stopping_rounds=10), log_evaluation(0)]  # Use callbacks for early stopping and logging
+                )
+
+
 
                 # Predict and evaluate
                 y_pred = lgbm_model.predict(X_test)
@@ -263,7 +309,7 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
                 'selected_features': selected_features
             })
 
-    # Find the top_n with the highest cross-validation accuracy
+    # Find the top_n with the highest cross-validation accuracy or ROC AUC
     performance_df = pd.DataFrame(performance_metrics)
 
     if not performance_df.empty:
@@ -278,7 +324,7 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             for i, feature in enumerate(optimal_features, start=1):
                 print(f"{i}. {feature}")
 
-        elif model == "light_gbm":
+        elif model == "lightgbm":
             optimal_row = performance_df.loc[performance_df['roc_auc'].idxmax()]
             optimal_features = optimal_row['selected_features']
             optimal_n_features = optimal_row['n_features_selected']
@@ -295,7 +341,7 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             if model == "random_forest":
                 plt.plot(performance_df['n_features_selected'], performance_df['cv_accuracy'], marker='o', label='CV Accuracy')
                 plt.ylabel('Cross-Validated Accuracy')
-            elif model == "light_gbm":
+            elif model == "lightgbm":
                 plt.plot(performance_df['n_features_selected'], performance_df['roc_auc'], marker='o', label='ROC AUC')
                 plt.ylabel('Cross-Validated ROC AUC')
             plt.xlabel('Number of Features Selected')
@@ -307,6 +353,7 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
         print("No performance metrics recorded. Please check your model implementation.")
 
     return optimal_features
+
 
 
 

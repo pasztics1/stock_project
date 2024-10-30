@@ -7,3 +7,6 @@ graphviz
 wallstreet
 xgboost
 seaborn
+optuna
+lightgbm
+shap
