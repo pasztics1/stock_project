@@ -228,6 +228,8 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
                 corr_matrix, top_features_list, top_features_lgbm, importance_col, threshold=correlation_threshold
             )
 
+            print(f'\n{selected_features}\n')
+
             # Number of features removed
             n_removed = len(top_features_list) - len(selected_features)
             print(f"Features after removing those with correlation >= {correlation_threshold}:")
@@ -351,7 +353,6 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
             plt.show()
     else:
         print("No performance metrics recorded. Please check your model implementation.")
-
     return optimal_features
 
 
@@ -372,3 +373,27 @@ def select_optimal_features(feature_scores_file, dataset_file, top_n_values, mod
 # optimal_features = select_optimal_features(feature_scores_file, features_name, top_n_values, correlation_threshold=0.8, plot=True)
 
 # print('Optimal features:\n',optimal_features)
+
+
+
+
+
+# top_n_values = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,20]
+# delta_t = 5
+# use_xgboost = False
+# y_type = "binary_classifier"
+# feature_scores_file = r'C:\Users\CsP\Desktop\stock_project-master\data\feature_scores_binary_classifier_delta_t14_perc0.8_AAPL.USUSD_Candlestick_1_Hour_ASK_26.01.2017-31.10.2024.csv'
+# features_name = 'features_binary_classifierdelta_t170.8AAPL.USUSD_Candlestick_1_Hour_ASK_26.01.2017-31.10.2024.csv'
+# model_type = "lightgbm"
+# correlation_threshold = 0.7
+
+# included_features = select_optimal_features(
+#         feature_scores_file=feature_scores_file,
+#         dataset_file=features_name,
+#         top_n_values=top_n_values,
+#         model=model_type,
+#         correlation_threshold=correlation_threshold,
+#         plot=True
+#         )
+
+# print(included_features)

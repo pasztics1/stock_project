@@ -1,0 +1,4 @@
+0.483595 using the original ds and a regular dt
+0.506654 using the original ds without the dates and a regular dt
+
+0.515 using random forests

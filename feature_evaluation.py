@@ -20,6 +20,7 @@ def feature_evaluation(ask_file_name, bid_file_name, PERC_DATA_USED, delta_t, mo
     from sklearn.linear_model import LogisticRegressionCV, LassoCV
     from sklearn.feature_selection import f_classif, f_regression, mutual_info_classif, mutual_info_regression, SelectKBest
     from sklearn.model_selection import TimeSeriesSplit
+    from sklearn.feature_selection import RFE
     import xgboost as xgb
     import lightgbm as lgb
     import shap
@@ -64,32 +65,7 @@ def feature_evaluation(ask_file_name, bid_file_name, PERC_DATA_USED, delta_t, mo
             y = y.astype(np.int8) if classifier else y.astype(np.float32)
 
             # Define column names
-
-            #hardcoded
-            # column_names = [
-            #     'Open_BID', 'High_BID', 'Low_BID', 'Close_BID', 'Volume_BID',
-            #     'Open_ASK', 'High_ASK', 'Low_ASK', 'Close_ASK', 'Volume_ASK', 'Mid_Price',
-            #     'Spread', 'Volume', 'Open_Mid', 'High_Mid', 'Low_Mid', 'Close_Mid',
-            #     'Unix_Diff_Until_Earnings', 'Month', 'Day_Type', 'Week_of_Year', 'Quarter',
-            #     'Hour', 'Is_Open_Hour', 'Is_Close_Hour', 'Day_of_Week', 'Is_Lunch_Time',
-            #     'Time_Since_Open', 'score', 'rating', 'SMA_3', 'SMA_6', 'SMA_12', 'SMA_5',
-            #     'SMA_10', 'SMA_20', 'EMA_3', 'EMA_6', 'EMA_12', 'EMA_26', 'MACD',
-            #     'Signal_Line', '%K', '%D', 'CCI', 'Return_1H', 'Return_3H', 'Return_6H',
-            #     'RSI_long', 'RSI_short', 'Middle_Band', 'Upper_Band', 'Lower_Band',
-            #     'High_Low', 'High_Close', 'Low_Close', 'True_Range', 'ATR', 'Volume_SMA_3',
-            #     'Volume_SMA_6', 'OBV', 'MF_Multiplier', 'MF_Volume', 'CMF', 'Volatility',
-            #     'Return', 'Volume_change', 'Lag_Mid_Price_1', 'Lag_Mid_Price_2',
-            #     'Lag_Mid_Price_3', 'Lag_Mid_Price_4', 'Lag_Return_1', 'Lag_Return_2',
-            #     'Lag_Return_3', 'Lag_Return_4', 'Return_1', 'Return_5', 'Return_10',
-            #     'Rolling_Mean_5', 'Rolling_Std_5', 'Lagged_Volatility', 'Hammer',
-            #     'Rolling_Skew', 'Rolling_Kurt', 'Price_Z_Score', 'Conversion_Line',
-            #     'Base_Line', 'Leading_Span_A', 'Leading_Span_B', 'Williams_%R',
-            #     'High_Low_Ratio', 'Close_Open_Ratio', 'Order_Imbalance', 'VPT', 'A/D_Line',
-            #     'Support_10', 'Resistance_10', 'Support_Close_10', 'Resistance_Close_10',
-            #     'Support_20', 'Resistance_20', 'Support_Close_20', 'Resistance_Close_20',
-            #     'SMA5_Volume', 'RSI_Volatility'
-            # ]
-
+            
             #dynamic
             column_names = data.columns[1:-1].tolist()
         
@@ -194,6 +170,28 @@ def feature_evaluation(ask_file_name, bid_file_name, PERC_DATA_USED, delta_t, mo
             # feature_scores_df['RFE_Ranking'] = rfe_selector.ranking_
             # print('5. RFE completed.')
 
+            from sklearn.feature_selection import RFECV
+
+            print("5. Performing Recursive Feature Elimination with Cross-Validation (RFECV)...")
+            rfecv = RFECV(
+                estimator=model_instance,
+                step=2,  # Adjust step size based on dataset size
+                cv=TimeSeriesSplit(n_splits=5),
+                scoring='roc_auc',  # Optimize based on ROC AUC
+                n_jobs=-1
+            )
+            rfecv.fit(X, y)
+
+            # Use 'column_names' instead of 'selected_features'
+            selected_features = [feature for feature, support in zip(column_names, rfecv.support_) if support]
+            print(f"Optimal number of features: {rfecv.n_features_}")
+            print("Selected Features after RFECV:")
+            print(selected_features)
+
+            feature_scores_df['RFECV_Ranking'] = rfecv.ranking_
+            print('5. RFECV completed.')
+
+
             # 6. (Optional) Lasso (L1 Regularization)
             # Complexity: High, runtime ~20 min
             # print("6. Performing Lasso (L1 Regularization)...")
@@ -257,4 +255,28 @@ def feature_evaluation(ask_file_name, bid_file_name, PERC_DATA_USED, delta_t, mo
         else:
             print(f"File already exists at: {output_file_path}")
     
-    return output_file_name
+    return output_file_path
+
+
+# ask_file_name = "AAPL.USUSD_Candlestick_1_Hour_ASK_26.01.2017-26.10.2024.csv"
+# bid_file_name = "AAPL.USUSD_Candlestick_1_Hour_BID_26.01.2017-26.10.2024.csv"
+
+# PERC_DATA_USED = 1
+# delta_t = 5
+# y_type = ["binary_classifier"]
+# # File Parameters
+# ask_file_name = "AAPL.USUSD_Candlestick_1_Hour_ASK_26.01.2017-26.10.2024.csv"
+# bid_file_name = "AAPL.USUSD_Candlestick_1_Hour_BID_26.01.2017-26.10.2024.csv"
+# model_type = "lightgbm"
+
+
+# feature_scores_file = feature_evaluation(
+#     ask_file_name=ask_file_name,
+#     bid_file_name=bid_file_name,
+#     PERC_DATA_USED=PERC_DATA_USED,
+#     delta_t=delta_t,
+#     model_type=model_type,
+#     y_types=y_type
+#         )
+
+# print(feature_scores_file)

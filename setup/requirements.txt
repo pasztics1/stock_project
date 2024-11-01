@@ -10,3 +10,5 @@ seaborn
 optuna
 lightgbm
 shap
+imblearn
+tensorflow

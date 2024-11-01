@@ -59,9 +59,40 @@ def add_earnings_feature_unix(df, earnings_dates, date_column='Datetime'):
         next_earnings_unix = int(time.mktime(next_earnings_date.timetuple()))
         return next_earnings_unix - date_unix
 
+    def get_unix_diff_since_last_earnings(date):
+        past_earnings = [ed for ed in earnings_dates if ed < date]
+        last_earnings_date = past_earnings[-1] if past_earnings else None
+        if not last_earnings_date:
+            return None
+        return int(time.mktime(date.timetuple())) - int(time.mktime(last_earnings_date.timetuple()))
+
+
     # Apply the function to each row in the dataframe
+    df['Unix_Diff_Since_Earnings'] = df[date_column].apply(lambda x: get_unix_diff_since_last_earnings(x))
+
     df['Unix_Diff_Until_Earnings'] = df[date_column].apply(lambda x: get_unix_diff_until_next_earnings(x))
     return df
+
+def get_numerical_columns(df):
+    """
+    Returns a list of numerical column names in the DataFrame.
+    """
+    return df.select_dtypes(include=[np.number]).columns.tolist()
+
+# Function to identify problematic columns
+def identify_problematic_columns(df):
+    # Columns with infinite values
+    inf_cols = df.columns[df.isin([np.inf, -np.inf]).any()].tolist()
+        
+    # Columns with NaN values
+    nan_cols = df.columns[df.isna().any()].tolist()
+        
+    # Columns with excessively large values (e.g., >1e10)
+    threshold = 1e10
+    large_cols = df.columns[(df.abs() > threshold).any()].tolist()
+        
+    return inf_cols, nan_cols, large_cols
+
 
 def add_features(ask_file_name, bid_file_name, PRECENTAGE, y_type, delta_t, label=True, dayfirst=True):
     """
@@ -246,6 +277,9 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, y_type, delta_t, labe
     df_merged['Upper_Band'] = df_merged['Middle_Band'] + 2 * df_merged['Mid_Price'].rolling(window=20).std()
     df_merged['Lower_Band'] = df_merged['Middle_Band'] - 2 * df_merged['Mid_Price'].rolling(window=20).std()
 
+    df_merged['BB_Width'] = df_merged['Upper_Band'] - df_merged['Lower_Band']
+
+
     # Average True Range (ATR)
     df_merged['High_Low'] = df_merged['High_Mid'] - df_merged['Low_Mid']
     df_merged['High_Close'] = np.abs(df_merged['High_Mid'] - df_merged['Close_Mid'].shift())
@@ -262,6 +296,7 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, y_type, delta_t, labe
 
     # On-Balance Volume (OBV)
     df_merged['OBV'] = (np.sign(df_merged['Close_Mid'].diff()) * df_merged['Volume']).fillna(0).cumsum()
+
 
     # Chaikin Money Flow (CMF)
     df_merged['MF_Multiplier'] = ((df_merged['Close_Mid'] - df_merged['Low_Mid']) - (df_merged['High_Mid'] - df_merged['Close_Mid'])) / (df_merged['High_Mid'] - df_merged['Low_Mid'])
@@ -358,6 +393,14 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, y_type, delta_t, labe
 
     # Support and resistance levels
 
+    # -----------------------------------------
+    # New Feature: Support & Resistance Levels
+    # -----------------------------------------
+    for period in [17, 30, 50]:
+        df[f'Support_{period}'] = df['Low_Mid'].rolling(window=period).min()
+        df[f'Resistance_{period}'] = df['High_Mid'].rolling(window=period).max()
+    # End of Support & Resistance Levels feature addition
+
     df_merged['Support_10'] = df_merged[['Low_ASK', 'Low_BID']].min(axis=1).rolling(window=10).min()
     df_merged['Resistance_10'] = df_merged[['High_ASK', 'High_BID']].max(axis=1).rolling(window=10).max()
     
@@ -378,6 +421,246 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, y_type, delta_t, labe
     # Interaction Terms
     df_merged['SMA5_Volume'] = df_merged['SMA_5'] * df_merged['Volume']
     df_merged['RSI_Volatility'] = df_merged['RSI_short'] * df_merged['Volatility']
+
+
+    #NEW FEATURES#
+
+    #obv rate of change
+
+    # Calculate percentage change safely
+    df_merged['OBV_ROC'] = df_merged['OBV'].pct_change().replace([np.inf, -np.inf], np.nan)
+
+    # Fill NaN values resulting from division by zero
+    df_merged['OBV_ROC'] = df_merged['OBV_ROC'].fillna(0)
+
+    
+
+    #rate of change in the last 12 hours
+    df_merged['ROC'] = df_merged['Mid_Price'].pct_change(12)  # 12-hour ROC
+
+    #Directional moment index
+
+    # Calculate directional movements
+    df_merged['UpMove'] = df_merged['High_Mid'] - df_merged['High_Mid'].shift(1)
+    df_merged['DownMove'] = df_merged['Low_Mid'].shift(1) - df_merged['Low_Mid']
+
+    df_merged['+DM'] = np.where((df_merged['UpMove'] > df_merged['DownMove']) & (df_merged['UpMove'] > 0), df_merged['UpMove'], 0)
+    df_merged['-DM'] = np.where((df_merged['DownMove'] > df_merged['UpMove']) & (df_merged['DownMove'] > 0), df_merged['DownMove'], 0)
+
+    # Calculate ATR
+    df_merged['ATR'] = df_merged['True_Range'].rolling(window=14).mean()
+
+    # Calculate +DI and -DI
+    df_merged['+DI'] = 100 * (df_merged['+DM'].rolling(window=14).mean() / df_merged['ATR'])
+    df_merged['-DI'] = 100 * (df_merged['-DM'].rolling(window=14).mean() / df_merged['ATR'])
+
+    # Calculate ADX
+    df_merged['DX'] = (abs(df_merged['+DI'] - df_merged['-DI']) / (df_merged['+DI'] + df_merged['-DI'] + 1e-10)) * 100
+    df_merged['ADX'] = df_merged['DX'].rolling(window=14).mean()
+
+    #Parabolic SAR
+    from ta.trend import PSARIndicator
+
+    psar = PSARIndicator(high=df_merged['High_Mid'], low=df_merged['Low_Mid'], close=df_merged['Close_Mid'], step=0.02, max_step=0.2)
+    df_merged['PSAR'] = psar.psar()
+
+    #Candlestick patterns
+
+    # Example: Engulfing Pattern
+    df_merged['Engulfing'] = np.where(
+        ((df_merged['Close_Mid'] > df_merged['Open_Mid']) & (df_merged['Close_Mid'].shift(1) < df_merged['Open_Mid'].shift(1)) & 
+        (df_merged['Open_Mid'] < df_merged['Close_Mid'].shift(1)) & (df_merged['Close_Mid'] > df_merged['Open_Mid'].shift(1))),
+        1, 0)
+
+
+    #Price channels
+
+    df_merged['Price_Channel_High'] = df_merged['Mid_Price'].rolling(window=20).max()
+    df_merged['Price_Channel_Low'] = df_merged['Mid_Price'].rolling(window=20).min()
+    df_merged['Price_Channel_Range'] = df_merged['Price_Channel_High'] - df_merged['Price_Channel_Low']
+
+
+    #Volatility channels 
+    df_merged['Hist_Volatility'] = df_merged['Return'].rolling(window=20).std()
+
+    #Volume-weighted average price (VWAP)
+    df_merged['Cumulative_Volume'] = df_merged['Volume'].cumsum()
+
+
+    df_merged['Cumulative_VP'] = (df_merged['Mid_Price'] * df_merged['Volume']).cumsum()
+    df_merged['VWAP'] = df_merged['Cumulative_VP'] / df_merged['Cumulative_Volume']
+
+    # Add a small epsilon to avoid log(0)
+    epsilon = 1e-10
+    df_merged['Log_Cumulative_VP'] = np.log(df_merged['Cumulative_VP'] + epsilon)
+    df_merged.drop(columns=['Cumulative_VP'], inplace=True)
+
+    
+
+    #Holiday effects
+
+    from pandas.tseries.holiday import USFederalHolidayCalendar
+
+    cal = USFederalHolidayCalendar()
+    holidays = cal.holidays(start=df_merged['Datetime'].min(), end=df_merged['Datetime'].max())
+
+    df_merged['Is_Holiday'] = df_merged['Datetime'].dt.date.isin(holidays.date).astype(int)
+    df_merged['Is_Nearest_Holiday'] = df_merged['Datetime'].dt.date.apply(
+        lambda x: 1 if any(abs((x - holiday).days) <= 3 for holiday in holidays.date) else 0
+    )
+
+    #Daylight saving time transitions
+
+    # df_merged['Is_DST_Start'] = df_merged['Datetime'].dt.date.isin([datetime(2024, 3, 10).date(), ...])  # Add all DST start dates
+    # df_merged['Is_DST_End'] = df_merged['Datetime'].dt.date.isin([datetime(2024, 11, 3).date(), ...])  # Add all DST end dates
+
+    #Interaction and polynomial features
+
+    #feature crosses
+    df_merged['RSI_MACD'] = df_merged['RSI_short'] * df_merged['MACD']
+    df_merged['ATR_VPT'] = df_merged['ATR'] * df_merged['VPT']
+
+
+
+    #time based decay features
+    df_merged['Decay_Factor'] = np.exp(-0.1 * (df_merged['Datetime'] - df_merged['Datetime'].min()).dt.days)
+    df_merged['Price_Decayed'] = df_merged['Mid_Price'] * df_merged['Decay_Factor']
+
+    
+    #Price Momentum Features
+
+    #Momentum indicator
+    df_merged['Momentum'] = df_merged['Mid_Price'] - df_merged['Mid_Price'].shift(10)
+
+    #Velocity and acceleration
+    df_merged['Velocity'] = df_merged['Mid_Price'].diff()
+    df_merged['Acceleration'] = df_merged['Velocity'].diff()
+
+
+    #Alt price representations
+    df_merged['Log_Return'] = np.log(df_merged['Mid_Price'] / df_merged['Mid_Price'].shift(1))
+    
+    df_merged['Pct_VWAP'] = (df_merged['Mid_Price'] - df_merged['VWAP']) / df_merged['VWAP']
+
+
+
+    #Additional time based features
+    df_merged['Trading_Session'] = df_merged['Datetime'].dt.hour.apply(
+        lambda x: 'Opening' if 9 <= x < 11 else ('Middle' if 11 <= x < 14 else 'Closing')
+    )
+    # One-hot encode the sessions
+    df_merged = pd.get_dummies(df_merged, columns=['Trading_Session'])
+
+    
+    #Other
+    df_merged['Spread_Change'] = df_merged['Spread'].pct_change()
+    df_merged['Spread_Change_SMA_5'] = df_merged['Spread_Change'].rolling(window=5).mean()
+
+    df_merged['Order_Book_Imbalance'] = (df_merged['Volume_BID'] - df_merged['Volume_ASK']) / (df_merged['Volume_BID'] + df_merged['Volume_ASK'] + 1e-10)
+
+    df_merged['Breakout_Support'] = np.where(df_merged['Mid_Price'] < df_merged['Support_Close_10'], 1, 0)
+    df_merged['Breakout_Resistance'] = np.where(df_merged['Mid_Price'] > df_merged['Resistance_Close_10'], 1, 0)
+
+    df_merged['Mean_Reversion'] = np.where(
+        (df_merged['Mid_Price'] > df_merged['Rolling_Mean_5']) & (df_merged['Return'] < 0), 1, 0)
+
+
+
+    #Machine Learning-Based features
+
+    numerical_cols = get_numerical_columns(df_merged)
+
+    # Convert all numerical columns to float
+    df_merged[numerical_cols] = df_merged[numerical_cols].apply(pd.to_numeric, errors='coerce')
+
+
+    inf_cols, nan_cols, large_cols = identify_problematic_columns(df_merged[numerical_cols])
+
+    # Apply imputer to the specified columns
+
+    # Replace infinite values with NaN (if not already done)
+    df_merged.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    # Forward fill and then backward fill
+    df_merged[nan_cols] = df_merged[nan_cols].fillna(method='ffill').fillna(method='bfill')
+
+    # For any remaining NaNs, fill with zero or another appropriate value
+    df_merged[nan_cols] = df_merged[nan_cols].fillna(0)
+
+
+
+    #PCA
+    from sklearn.decomposition import PCA
+
+    pca = PCA(n_components=5)
+    pca_features = pca.fit_transform(df_merged[numerical_cols].fillna(0))
+    for i in range(pca.n_components):
+        df_merged[f'PCA_{i+1}'] = pca_features[:, i]
+
+    
+    #Autoencoder
+    from tensorflow.keras.models import Model
+    from tensorflow.keras.layers import Input, Dense
+
+    # It's essential to ensure only numerical data is passed to the autoencoder
+    input_dim = len(numerical_cols)
+    encoding_dim = 10
+
+    input_layer = Input(shape=(input_dim,))
+    encoder = Dense(encoding_dim, activation='relu')(input_layer)
+    decoder = Dense(input_dim, activation='linear')(encoder)
+
+    autoencoder = Model(inputs=input_layer, outputs=decoder)
+    autoencoder.compile(optimizer='adam', loss='mse')
+
+    # Prepare data for autoencoder with explicit float conversion
+    autoencoder_input = df_merged[numerical_cols].values.astype(float)
+
+    # Train the autoencoder
+    autoencoder.fit(
+        autoencoder_input, 
+        autoencoder_input,
+        epochs=50, 
+        batch_size=256, 
+        shuffle=True, 
+        verbose=0
+    )
+
+
+    # Extract the encoder part
+    encoder_model = Model(inputs=input_layer, outputs=encoder)
+    encoded_features = encoder_model.predict(autoencoder_input)
+    for i in range(encoding_dim):
+        df_merged[f'AutoEnc_{i+1}'] = encoded_features[:, i]
+
+        
+    #polynomial features
+    # Check for NaNs in the specific columns
+
+    # Verify that no NaNs remain
+    nan_counts = df_merged[nan_cols].isna().sum()
+
+
+    # Select only numerical columns for PolynomialFeatures
+    numerical_cols_after_impute = get_numerical_columns(df_merged)
+    poly_input = df_merged[['RSI_short', 'MACD', 'ATR', 'VPT']].copy()
+
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.preprocessing import PolynomialFeatures
+
+    # Scale features before PolynomialFeatures to prevent large polynomial terms
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(poly_input)
+    poly_input_scaled = pd.DataFrame(scaled_features, columns=['RSI_short_scaled', 'MACD_scaled', 'ATR_scaled', 'VPT_scaled'], index=df_merged.index)
+
+    # Apply PolynomialFeatures
+    poly = PolynomialFeatures(degree=2, include_bias=False, interaction_only=False)
+    poly_features = poly.fit_transform(poly_input_scaled)
+    poly_feature_names = poly.get_feature_names_out(['RSI_short_scaled', 'MACD_scaled', 'ATR_scaled', 'VPT_scaled'])
+    df_poly = pd.DataFrame(poly_features, columns=poly_feature_names, index=df_merged.index)
+    df_merged = pd.concat([df_merged, df_poly], axis=1)
+
+
 
     # Determining the y label
     if label:
@@ -417,8 +700,7 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, y_type, delta_t, labe
     df_merged = df_merged.dropna()
 
     start_index = int(df_merged.shape[0] - df_merged.shape[0] * PRECENTAGE)  # Include {percentage}% of the dataset for quicker fitting
-    df_merged = df_merged.iloc[start_index:] 
-
+    df_merged = df_merged.iloc[:len(df_merged)-start_index] 
 
 
     #the rating column can contain 5 values: extreme fear, fear, neutral, greed, extreme greed. I want to normalize this as well.
@@ -440,3 +722,11 @@ def add_features(ask_file_name, bid_file_name, PRECENTAGE, y_type, delta_t, labe
     output_path = os.path.join(path, f"features_{y_type}delta_t{delta_t}{PRECENTAGE}{ask_file_name}")
     df_merged.to_csv(output_path, index=False)
     print(f"Successfully added features to {output_path} with {PRECENTAGE * 100}% of the data")    
+
+
+y_type = ["binary_classifier"]
+# File Parameters
+ask_file_name = "AAPL.USUSD_Candlestick_1_Hour_ASK_26.01.2017-31.10.2024.csv"
+bid_file_name = "AAPL.USUSD_Candlestick_1_Hour_BID_26.01.2017-31.10.2024.csv" 
+
+add_features(ask_file_name, bid_file_name, 1, "binary_classifier", 36)
