@@ -1,0 +1,20 @@
+{
+    "delta_t": 36,
+    "hyperparameter_set": {
+        "learning_rate": 0.2,
+        "num_leaves": 31,
+        "max_depth": 20,
+        "min_data_in_leaf": 100,
+        "feature_fraction": 0.8,
+        "lambda_l1": 1.0,
+        "lambda_l2": 0.1,
+        "min_gain_to_split": 1.0,
+        "max_bin": 500,
+        "boosting_type": "gbdt",
+        "bagging_fraction": 0.8,
+        "bagging_freq": 10,
+        "bagging_seed": 999
+    },
+    "start_time": "20241102_131047",
+    "model_path": "C:\\Users\\CsP\\Desktop\\stock_project_king_of_the_hill\\saved_models\\final_lightgbm_model_delta_t_36.pkl"
+}

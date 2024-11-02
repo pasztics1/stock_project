@@ -1,0 +1,14 @@
+Optimal Threshold Evaluation Metrics:
+Using: C:\Users\CsP\Desktop\stock_project_king_of_the_hill\saved_models\final_lightgbm_model_delta_t_35.pklThreshold: 0.4773
+ROC AUC: 0.4860
+Accuracy: 0.5588
+Precision: 0.5540
+Recall: 0.9538
+F1 Score: 0.7009
+Guessed 0: 604.0000
+Guessed 1: 715.0000
+Total: 1319.0000
+Avg_guess: 0.5437
+Discarded: 0.0000
+Discarded Percentage: 0.0000
+Current time: .4f
